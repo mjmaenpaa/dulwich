@@ -91,7 +91,7 @@ class CommitTests(PorcelainTestCase):
         sha = porcelain.commit(self.repo.path, message=b'Some message',
                 author=b'Joe <joe@example.com>', committer=b'Bob <bob@example.com>')
         self.assertTrue(isinstance(sha, bytes))
-        self.assertEquals(len(sha), 40)
+        self.assertEqual(len(sha), 40)
 
 @skipIfPY3
 class CloneTests(PorcelainTestCase):
@@ -641,13 +641,13 @@ class ReceivePackTests(PorcelainTestCase):
 class BranchListTests(PorcelainTestCase):
 
     def test_standard(self):
-        self.assertEquals(set([]), set(porcelain.branch_list(self.repo)))
+        self.assertEqual(set([]), set(porcelain.branch_list(self.repo)))
 
     def test_new_branch(self):
         [c1] = build_commit_graph(self.repo.object_store, [[1]])
         self.repo[b"HEAD"] = c1.id
         porcelain.branch_create(self.repo, b"foo")
-        self.assertEquals(
+        self.assertEqual(
             set([b"master", b"foo"]),
             set(porcelain.branch_list(self.repo)))
 
@@ -665,7 +665,7 @@ class BranchCreateTests(PorcelainTestCase):
         [c1] = build_commit_graph(self.repo.object_store, [[1]])
         self.repo[b"HEAD"] = c1.id
         porcelain.branch_create(self.repo, b"foo")
-        self.assertEquals(
+        self.assertEqual(
             set([b"master", b"foo"]),
             set(porcelain.branch_list(self.repo)))
 
