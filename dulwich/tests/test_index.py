@@ -59,7 +59,6 @@ class IndexTestCase(TestCase):
         return Index(os.path.join(self.datadir, name))
 
 
-@skipIfPY3
 class SimpleIndexTestCase(IndexTestCase):
 
     def test_len(self):

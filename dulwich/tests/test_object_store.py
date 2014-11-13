@@ -54,7 +54,6 @@ from dulwich.tests import (
 from dulwich.tests.utils import (
     make_object,
     build_pack,
-    skipIfPY3,
     )
 
 
@@ -195,7 +194,6 @@ class ObjectStoreTests(object):
         self.store.close()
 
 
-@skipIfPY3
 class MemoryObjectStoreTests(ObjectStoreTests, TestCase):
 
     def setUp(self):
@@ -234,7 +232,7 @@ class MemoryObjectStoreTests(ObjectStoreTests, TestCase):
 
         f = BytesIO()
         entries = build_pack(f, [], store=o)
-        self.assertEquals([], entries)
+        self.assertEqual([], entries)
         o.add_thin_pack(f.read, None)
 
 
@@ -258,7 +256,6 @@ class PackBasedObjectStoreTests(ObjectStoreTests):
         self.assertEqual(0, self.store.pack_loose_objects())
 
 
-@skipIfPY3
 class DiskObjectStoreTests(PackBasedObjectStoreTests, TestCase):
 
     def setUp(self):
@@ -349,7 +346,7 @@ class DiskObjectStoreTests(PackBasedObjectStoreTests, TestCase):
 
         f = BytesIO()
         entries = build_pack(f, [], store=o)
-        self.assertEquals([], entries)
+        self.assertEqual([], entries)
         o.add_thin_pack(f.read, None)
 
 
