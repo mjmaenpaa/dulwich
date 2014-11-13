@@ -40,7 +40,6 @@ from dulwich.tests.compat.utils import require_git_version
 from dulwich.tests.utils import (
     build_commit_graph,
     make_object,
-    skipIfPY3,
     )
 
 
@@ -52,7 +51,7 @@ class PorcelainTestCase(TestCase):
         self.addCleanup(shutil.rmtree, repo_dir)
         self.repo = Repo.init(repo_dir)
 
-@skipIfPY3
+
 class ArchiveTests(PorcelainTestCase):
     """Tests for the archive command."""
 
@@ -70,7 +69,7 @@ class ArchiveTests(PorcelainTestCase):
         self.addCleanup(tf.close)
         self.assertEqual([], tf.getnames())
 
-@skipIfPY3
+
 class UpdateServerInfoTests(PorcelainTestCase):
 
     def test_simple(self):
@@ -81,7 +80,7 @@ class UpdateServerInfoTests(PorcelainTestCase):
         self.assertTrue(os.path.exists(os.path.join(self.repo.controldir(),
             'info', 'refs')))
 
-@skipIfPY3
+
 class CommitTests(PorcelainTestCase):
 
     def test_custom_author(self):
@@ -93,7 +92,7 @@ class CommitTests(PorcelainTestCase):
         self.assertTrue(isinstance(sha, bytes))
         self.assertEqual(len(sha), 40)
 
-@skipIfPY3
+
 class CloneTests(PorcelainTestCase):
 
     def test_simple_local(self):
@@ -430,7 +429,7 @@ class ResetTests(PorcelainTestCase):
 
         self.assertEqual([], changes)
 
-@skipIfPY3
+
 class PushTests(PorcelainTestCase):
 
     def test_simple(self):
@@ -474,7 +473,7 @@ class PushTests(PorcelainTestCase):
         self.assertEqual(r_clone[b'HEAD'].id, self.repo[refs_path].id)
         self.assertEqual(os.path.basename(fullpath).encode(sys.getfilesystemencoding()), change.new.path)
 
-@skipIfPY3
+
 class PullTests(PorcelainTestCase):
 
     def test_simple(self):
@@ -604,7 +603,7 @@ class StatusTests(PorcelainTestCase):
 
 # TODO(jelmer): Add test for dulwich.porcelain.daemon
 
-@skipIfPY3
+
 class UploadPackTests(PorcelainTestCase):
     """Tests for upload_pack."""
 
@@ -615,7 +614,7 @@ class UploadPackTests(PorcelainTestCase):
         self.assertEqual([b'0000'], outlines)
         self.assertEqual(0, exitcode)
 
-@skipIfPY3
+
 class ReceivePackTests(PorcelainTestCase):
     """Tests for receive_pack."""
 
@@ -680,7 +679,7 @@ class BranchDeleteTests(PorcelainTestCase):
         porcelain.branch_delete(self.repo, b'foo')
         self.assertFalse(b"foo" in porcelain.branch_list(self.repo))
 
-@skipIfPY3
+
 class FetchTests(PorcelainTestCase):
 
     def test_simple(self):
