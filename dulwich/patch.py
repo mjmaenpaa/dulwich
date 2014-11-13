@@ -43,12 +43,12 @@ def write_commit_patch(f, commit, contents, progress, version=None):
     :return: tuple with filename and contents
     """
     (num, total) = progress
-    f.write("From %s %s\n" % (commit.id, time.ctime(commit.commit_time)))
-    f.write("From: %s\n" % commit.author)
-    f.write("Date: %s\n" % time.strftime("%a, %d %b %Y %H:%M:%S %Z"))
-    f.write("Subject: [PATCH %d/%d] %s\n" % (num, total, commit.message))
-    f.write("\n")
-    f.write("---\n")
+    f.write(b'From ' + commit.id + b' ' + time.ctime(commit.commit_time).encode('ascii') + b'\n')
+    f.write(b'From: ' + commit.author + b'\n')
+    f.write(b'Date: ' + time.strftime("%a, %d %b %Y %H:%M:%S %Z").encode('ascii') + b'\n')
+    f.write(('Subject: [PATCH %d/%d] ' % (num, total)).encode('ascii') + commit.message + b'\n')
+    f.write(b'\n')
+    f.write(b'---\n')
     try:
         import subprocess
         p = subprocess.Popen(["diffstat"], stdout=subprocess.PIPE,
@@ -60,12 +60,12 @@ def write_commit_patch(f, commit, contents, progress, version=None):
         f.write(diffstat)
         f.write("\n")
     f.write(contents)
-    f.write("-- \n")
+    f.write(b'-- \n')
     if version is None:
         from dulwich import __version__ as dulwich_version
-        f.write("Dulwich %d.%d.%d\n" % dulwich_version)
+        f.write(("Dulwich %d.%d.%d\n" % dulwich_version).encode('ascii'))
     else:
-        f.write("%s\n" % version)
+        f.write(version + b'\n')
 
 
 def get_summary(commit):
@@ -74,10 +74,10 @@ def get_summary(commit):
     :param commit: Commit
     :return: Summary string
     """
-    return commit.message.splitlines()[0].replace(" ", "-")
+    return commit.message.splitlines()[0].replace(b' ', b'-')
 
 
-def unified_diff(a, b, fromfile='', tofile='', n=3):
+def unified_diff(a, b, fromfile=b'', tofile=b'', n=3):
     """difflib.unified_diff that doesn't write any dates or trailing spaces.
 
     Based on the same function in Python2.6.5-rc2's difflib.py
@@ -85,26 +85,26 @@ def unified_diff(a, b, fromfile='', tofile='', n=3):
     started = False
     for group in SequenceMatcher(None, a, b).get_grouped_opcodes(n):
         if not started:
-            yield '--- %s\n' % fromfile
-            yield '+++ %s\n' % tofile
+            yield b'--- ' + fromfile + b'\n'
+            yield b'+++ ' + tofile + b'\n'
             started = True
         i1, i2, j1, j2 = group[0][1], group[-1][2], group[0][3], group[-1][4]
-        yield "@@ -%d,%d +%d,%d @@\n" % (i1+1, i2-i1, j1+1, j2-j1)
+        yield ("@@ -%d,%d +%d,%d @@\n" % (i1+1, i2-i1, j1+1, j2-j1)).encode('ascii')
         for tag, i1, i2, j1, j2 in group:
             if tag == 'equal':
                 for line in a[i1:i2]:
-                    yield ' ' + line
+                    yield b' ' + line
                 continue
             if tag == 'replace' or tag == 'delete':
                 for line in a[i1:i2]:
-                    if not line[-1] == '\n':
-                        line += '\n\\ No newline at end of file\n'
-                    yield '-' + line
+                    if not line[-1:] == b'\n':
+                        line += b'\n\\ No newline at end of file\n'
+                    yield b'-' + line
             if tag == 'replace' or tag == 'insert':
                 for line in b[j1:j2]:
-                    if not line[-1] == '\n':
-                        line += '\n\\ No newline at end of file\n'
-                    yield '+' + line
+                    if not line[-1:] == b'\n':
+                        line += b'\n\\ No newline at end of file\n'
+                    yield b'+' + line
 
 
 def is_binary(content):
@@ -112,7 +112,7 @@ def is_binary(content):
 
     :param content: Bytestring to check for binary content
     """
-    return '\0' in content[:FIRST_FEW_BYTES]
+    return b'\0' in content[:FIRST_FEW_BYTES]
 
 
 def write_object_diff(f, store, old_file, new_file, diff_binary=False):
@@ -131,15 +131,15 @@ def write_object_diff(f, store, old_file, new_file, diff_binary=False):
     (new_path, new_mode, new_id) = new_file
     def shortid(hexsha):
         if hexsha is None:
-            return "0" * 7
+            return b'0' * 7
         else:
             return hexsha[:7]
 
     def content(mode, hexsha):
         if hexsha is None:
-            return ''
+            return b''
         elif S_ISGITLINK(mode):
-            return "Submodule commit " + hexsha + "\n"
+            return b'Submodule commit ' + hexsha + b'\n'
         else:
             return store[hexsha].data
 
@@ -150,32 +150,32 @@ def write_object_diff(f, store, old_file, new_file, diff_binary=False):
             return content.splitlines(True)
 
     if old_path is None:
-        old_path = "/dev/null"
+        old_path = b'/dev/null'
     else:
-        old_path = "a/%s" % old_path
+        old_path = b'a/' + old_path
     if new_path is None:
-        new_path = "/dev/null"
+        new_path = b'/dev/null'
     else:
-        new_path = "b/%s" % new_path
-    f.write("diff --git %s %s\n" % (old_path, new_path))
+        new_path = b'b/' + new_path
+    f.write(b'diff --git ' + old_path + b' ' + new_path + b'\n')
     if old_mode != new_mode:
         if new_mode is not None:
             if old_mode is not None:
-                f.write("old mode %o\n" % old_mode)
-            f.write("new mode %o\n" % new_mode)
+                f.write(("old mode %o\n" % old_mode).encode('ascii'))
+            f.write(("new mode %o\n" % new_mode).encode('ascii'))
         else:
-            f.write("deleted mode %o\n" % old_mode)
-    f.write("index %s..%s" % (shortid(old_id), shortid(new_id)))
+            f.write(("deleted mode %o\n" % old_mode).encode('ascii'))
+    f.write(b'index ' + shortid(old_id) + b'..' + shortid(new_id))
     if new_mode is not None:
-        f.write(" %o" % new_mode)
-    f.write("\n")
+        f.write((" %o" % new_mode).encode('ascii'))
+    f.write(b'\n')
     old_content = content(old_mode, old_id)
     new_content = content(new_mode, new_id)
     if not diff_binary and (is_binary(old_content) or is_binary(new_content)):
-        f.write("Binary files %s and %s differ\n" % (old_path, new_path))
+        f.write(b'Binary files ' + old_path + b' and ' + new_path + b' differ\n')
     else:
         f.writelines(unified_diff(lines(old_content), lines(new_content),
-            old_path, new_path))
+                                  old_path, new_path))
 
 
 def write_blob_diff(f, old_file, new_file):
@@ -187,11 +187,12 @@ def write_blob_diff(f, old_file, new_file):
 
     :note: The use of write_object_diff is recommended over this function.
     """
+    # TODO Avoid so much encode/decode
     (old_path, old_mode, old_blob) = old_file
     (new_path, new_mode, new_blob) = new_file
     def blob_id(blob):
         if blob is None:
-            return "0" * 7
+            return b'0' * 7
         else:
             return blob.id[:7]
     def lines(blob):
@@ -200,29 +201,29 @@ def write_blob_diff(f, old_file, new_file):
         else:
             return []
     if old_path is None:
-        old_path = "/dev/null"
+        old_path = b'/dev/null'
     else:
-        old_path = "a/%s" % old_path
+        old_path = b'a/' + old_path
     if new_path is None:
-        new_path = "/dev/null"
+        new_path = b'/dev/null'
     else:
-        new_path = "b/%s" % new_path
-    f.write("diff --git %s %s\n" % (old_path, new_path))
+        new_path = b'b/' + new_path
+    f.write(b'diff --git ' + old_path + b' ' + new_path + b'\n')
     if old_mode != new_mode:
         if new_mode is not None:
             if old_mode is not None:
-                f.write("old mode %o\n" % old_mode)
-            f.write("new mode %o\n" % new_mode)
+                f.write(("old mode %o\n" % old_mode).encode('ascii'))
+            f.write(("new mode %o\n" % new_mode).encode('ascii'))
         else:
-            f.write("deleted mode %o\n" % old_mode)
-    f.write("index %s..%s" % (blob_id(old_blob), blob_id(new_blob)))
+            f.write(("deleted mode %o\n" % old_mode).encode('ascii'))
+    f.write(b'index ' + blob_id(old_blob) + b'..' + blob_id(new_blob))
     if new_mode is not None:
-        f.write(" %o" % new_mode)
-    f.write("\n")
+        f.write((" %o" % new_mode).encode('ascii'))
+    f.write(b'\n')
     old_contents = lines(old_blob)
     new_contents = lines(new_blob)
     f.writelines(unified_diff(old_contents, new_contents,
-        old_path, new_path))
+                              old_path, new_path))
 
 
 def write_tree_diff(f, store, old_tree, new_tree, diff_binary=False):
@@ -247,11 +248,15 @@ def git_am_patch_split(f):
     :param f: File-like object to parse
     :return: Tuple with commit object, diff contents and git version
     """
-    parser = email.parser.Parser()
+    try:
+        parser = email.parser.BytesParser()
+    except AttributeError:
+        # PY2
+        parser = email.parser.Parser()
     msg = parser.parse(f)
     c = Commit()
-    c.author = msg["from"]
-    c.committer = msg["from"]
+    c.author = msg["from"].encode('ascii')
+    c.committer = msg["from"].encode('ascii')
     try:
         patch_tag_start = msg["subject"].index("[PATCH")
     except ValueError:
@@ -259,29 +264,29 @@ def git_am_patch_split(f):
     else:
         close = msg["subject"].index("] ", patch_tag_start)
         subject = msg["subject"][close+2:]
-    c.message = subject.replace("\n", "") + "\n"
+    c.message = subject.encode('ascii').replace(b'\n', b'') + b'\n'
     first = True
 
-    body = BytesIO(msg.get_payload())
+    body = BytesIO(msg.get_payload(decode=True))
 
     for l in body:
-        if l == "---\n":
+        if l == b'---\n':
             break
         if first:
-            if l.startswith("From: "):
-                c.author = l[len("From: "):].rstrip()
+            if l.startswith(b'From: '):
+                c.author = l[len(b'From: '):].rstrip()
             else:
-                c.message += "\n" + l
+                c.message += b'\n' + l
             first = False
         else:
             c.message += l
-    diff = ""
+    diff = b''
     for l in body:
-        if l == "-- \n":
+        if l == b'-- \n':
             break
         diff += l
     try:
-        version = next(body).rstrip("\n")
+        version = next(body).rstrip(b'\n')
     except StopIteration:
         version = None
     return c, diff, version
