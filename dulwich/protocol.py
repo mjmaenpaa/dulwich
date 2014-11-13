@@ -19,11 +19,14 @@
 
 """Generic functions for talking the git smart server protocol."""
 
+import sys
 from io import BytesIO
 from os import (
     SEEK_END,
     )
 import socket
+
+from dulwich._py3_compat import int2byte
 
 from dulwich.errors import (
     HangupException,
@@ -32,7 +35,7 @@ from dulwich.errors import (
 
 TCP_GIT_PORT = 9418
 
-ZERO_SHA = "0" * 40
+ZERO_SHA = b'0' * 40
 
 SINGLE_ACK = 0
 MULTI_ACK = 1
@@ -61,8 +64,8 @@ def pkt_line(data):
         None, returns the flush-pkt ('0000').
     """
     if data is None:
-        return '0000'
-    return '%04x%s' % (len(data) + 4, data)
+        return b'0000'
+    return ('%04x' % (len(data) + 4)).encode('ascii') + data
 
 
 class Protocol(object):
@@ -79,6 +82,11 @@ class Protocol(object):
 
     def __init__(self, read, write, close=None, report_activity=None):
         self.read = read
+        def read_wrap(*args):
+            r = read(*args)
+            return r
+        self.read = read_wrap
+
         self.write = write
         self._close = close
         self.report_activity = report_activity
@@ -209,7 +217,7 @@ class Protocol(object):
         # 65520-5 = 65515
         # WTF: Why have the len in ASCII, but the channel in binary.
         while blob:
-            self.write_pkt_line("%s%s" % (chr(channel), blob[:65515]))
+            self.write_pkt_line(int2byte(channel) + blob[:65515])
             blob = blob[65515:]
 
     def send_cmd(self, cmd, *args):
@@ -220,7 +228,7 @@ class Protocol(object):
         :param cmd: The remote service to access.
         :param args: List of arguments to send to remove service.
         """
-        self.write_pkt_line("%s %s" % (cmd, "".join(["%s\0" % a for a in args])))
+        self.write_pkt_line(cmd + b' ' + b''.join([a + b'\0' for a in args]))
 
     def read_cmd(self):
         """Read a command and some arguments from the git client
@@ -230,10 +238,10 @@ class Protocol(object):
         :return: A tuple of (command, [list of arguments]).
         """
         line = self.read_pkt_line()
-        splice_at = line.find(" ")
+        splice_at = line.find(b' ')
         cmd, args = line[:splice_at], line[splice_at+1:]
-        assert args[-1] == "\x00"
-        return cmd, args[:-1].split(chr(0))
+        assert args[-1:] == b'\x00'
+        return cmd, args[:-1].split(b'\x00')
 
 
 _RBUFSIZE = 8192  # Default read buffer size.
@@ -348,10 +356,10 @@ def extract_capabilities(text):
     :param text: String to extract from
     :return: Tuple with text with capabilities removed and list of capabilities
     """
-    if not "\0" in text:
+    if not b'\0' in text:
         return text, []
-    text, capabilities = text.rstrip().split("\0")
-    return (text, capabilities.strip().split(" "))
+    text, capabilities = text.rstrip().split(b'\0')
+    return (text, capabilities.strip().split(b' '))
 
 
 def extract_want_line_capabilities(text):
@@ -365,17 +373,17 @@ def extract_want_line_capabilities(text):
     :param text: Want line to extract from
     :return: Tuple with text with capabilities removed and list of capabilities
     """
-    split_text = text.rstrip().split(" ")
+    split_text = text.rstrip().split(b' ')
     if len(split_text) < 3:
         return text, []
-    return (" ".join(split_text[:2]), split_text[2:])
+    return (b' '.join(split_text[:2]), split_text[2:])
 
 
 def ack_type(capabilities):
     """Extract the ack type from a capabilities list."""
-    if 'multi_ack_detailed' in capabilities:
+    if b'multi_ack_detailed' in capabilities:
         return MULTI_ACK_DETAILED
-    elif 'multi_ack' in capabilities:
+    elif b'multi_ack' in capabilities:
         return MULTI_ACK
     return SINGLE_ACK
 
