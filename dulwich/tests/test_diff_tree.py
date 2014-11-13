@@ -86,7 +86,6 @@ class DiffTestCase(TestCase):
         return self.store[commit_tree(self.store, commit_blobs)]
 
 
-@skipIfPY3
 class TreeChangesTest(DiffTestCase):
 
     def setUp(self):
@@ -470,7 +469,6 @@ class TreeChangesTest(DiffTestCase):
             [parent1, parent2], merge, rename_detector=self.detector)
 
 
-@skipIfPY3
 class RenameDetectionTest(DiffTestCase):
 
     def _do_test_count_blocks(self, count_blocks):

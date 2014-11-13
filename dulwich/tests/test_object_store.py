@@ -353,7 +353,6 @@ class DiskObjectStoreTests(PackBasedObjectStoreTests, TestCase):
         o.add_thin_pack(f.read, None)
 
 
-@skipIfPY3
 class TreeLookupPathTests(TestCase):
 
     def setUp(self):
