@@ -37,7 +37,7 @@ from fastimport import (
 
 import stat
 
-from dulwich._compat import iteritems
+from dulwich._py3_compat import items
 
 def split_email(text):
     (name, email) = text.rsplit(" <", 1)
@@ -185,7 +185,7 @@ class GitImportProcessor(processor.ImportProcessor):
                 raise Exception("Command %s not supported" % filecmd.name)
         commit.tree = commit_tree(self.repo.object_store,
             ((path, hexsha, mode) for (path, (mode, hexsha)) in
-                iteritems(self._contents)))
+                items(self._contents)))
         if self.last_commit is not None:
             commit.parents.append(self.last_commit)
         commit.parents += cmd.merges

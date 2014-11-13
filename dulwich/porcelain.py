@@ -75,6 +75,11 @@ from dulwich.server import (
     update_server_info as server_update_server_info,
     )
 
+from dulwich._py3_compat import (
+    stdout,
+    stderr,
+    )
+
 
 # Module level tuple definition for status output
 GitStatus = namedtuple('GitStatus', 'staged unstaged untracked')
@@ -87,8 +92,8 @@ def open_repo(path_or_repo):
     return Repo(path_or_repo)
 
 
-def archive(location, committish=None, outstream=sys.stdout,
-            errstream=sys.stderr):
+def archive(location, committish=None, outstream=stdout,
+            errstream=stderr):
     """Create an archive.
 
     :param location: Location of repository for which to generate an archive.
@@ -99,7 +104,7 @@ def archive(location, committish=None, outstream=sys.stdout,
 
     client, path = get_transport_and_path(location)
     if committish is None:
-        committish = "HEAD"
+        committish = b'HEAD'
     # TODO(jelmer): This invokes C git; this introduces a dependency.
     # Instead, dulwich should have its own archiver implementation.
     client.archive(path, committish, outstream.write, errstream.write,
@@ -123,10 +128,10 @@ def symbolic_ref(repo, ref_name, force=False):
     :param force: force settings without checking if it exists in refs/heads
     """
     repo_obj = open_repo(repo)
-    ref_path = 'refs/heads/%s' % ref_name
+    ref_path = b'refs/heads/' + ref_name
     if not force and ref_path not in repo_obj.refs.keys():
         raise ValueError('fatal: ref `%s` is not a ref' % ref_name)
-    repo_obj.refs.set_symbolic_ref('HEAD', ref_path)
+    repo_obj.refs.set_symbolic_ref(b'HEAD', ref_path)
 
 
 def commit(repo=".", message=None, author=None, committer=None):
@@ -174,7 +179,7 @@ def init(path=".", bare=False):
         return Repo.init(path)
 
 
-def clone(source, target=None, bare=False, checkout=None, outstream=sys.stdout):
+def clone(source, target=None, bare=False, checkout=None, outstream=stdout):
     """Clone a local or remote git repository.
 
     :param source: Path or URL for source repository
@@ -201,11 +206,11 @@ def clone(source, target=None, bare=False, checkout=None, outstream=sys.stdout):
     remote_refs = client.fetch(host_path, r,
         determine_wants=r.object_store.determine_wants_all,
         progress=outstream.write)
-    r["HEAD"] = remote_refs["HEAD"]
+    r[b'HEAD'] = remote_refs[b'HEAD']
     if checkout:
-        outstream.write('Checking out HEAD')
+        outstream.write(b'Checking out HEAD')
         index.build_index_from_tree(r.path, r.index_path(),
-                                    r.object_store, r["HEAD"].tree)
+                                    r.object_store, r[b'HEAD'].tree)
 
     return r
 
@@ -239,28 +244,28 @@ def rm(repo=".", paths=None):
     r = open_repo(repo)
     index = r.open_index()
     for p in paths:
-        del index[p]
+        del index[p.encode(sys.getfilesystemencoding())]
     index.write()
 
 
-def print_commit(commit, outstream=sys.stdout):
+def print_commit(commit, outstream=stdout):
     """Write a human-readable commit log entry.
 
     :param commit: A `Commit` object
     :param outstream: A stream file to write to
     """
-    outstream.write("-" * 50 + "\n")
-    outstream.write("commit: %s\n" % commit.id)
+    outstream.write(b'-' * 50 + b'\n')
+    outstream.write(b'commit: ' + commit.id + b'\n')
     if len(commit.parents) > 1:
-        outstream.write("merge: %s\n" % "...".join(commit.parents[1:]))
-    outstream.write("author: %s\n" % commit.author)
-    outstream.write("committer: %s\n" % commit.committer)
-    outstream.write("\n")
-    outstream.write(commit.message + "\n")
-    outstream.write("\n")
+        outstream.write(b'merge: ' + b'...'.join(commit.parents[1:]) + b'\n')
+    outstream.write(b'author: ' + commit.author + b'\n')
+    outstream.write(b'committer: ' + commit.committer + b'\n')
+    outstream.write(b'\n')
+    outstream.write(commit.message + b'\n')
+    outstream.write(b'\n')
 
 
-def print_tag(tag, outstream=sys.stdout):
+def print_tag(tag, outstream=stdout):
     """Write a human-readable tag.
 
     :param tag: A `Tag` object
@@ -273,7 +278,7 @@ def print_tag(tag, outstream=sys.stdout):
     outstream.write("\n")
 
 
-def show_blob(repo, blob, outstream=sys.stdout):
+def show_blob(repo, blob, outstream=stdout):
     """Write a blob to a stream.
 
     :param repo: A `Repo` object
@@ -283,7 +288,7 @@ def show_blob(repo, blob, outstream=sys.stdout):
     outstream.write(blob.data)
 
 
-def show_commit(repo, commit, outstream=sys.stdout):
+def show_commit(repo, commit, outstream=stdout):
     """Show a commit to a stream.
 
     :param repo: A `Repo` object
@@ -295,7 +300,7 @@ def show_commit(repo, commit, outstream=sys.stdout):
     write_tree_diff(outstream, repo.object_store, parent_commit.tree, commit.tree)
 
 
-def show_tree(repo, tree, outstream=sys.stdout):
+def show_tree(repo, tree, outstream=stdout):
     """Print a tree to a stream.
 
     :param repo: A `Repo` object
@@ -306,7 +311,7 @@ def show_tree(repo, tree, outstream=sys.stdout):
         outstream.write("%s\n" % n)
 
 
-def show_tag(repo, tag, outstream=sys.stdout):
+def show_tag(repo, tag, outstream=stdout):
     """Print a tag to a stream.
 
     :param repo: A `Repo` object
@@ -319,14 +324,14 @@ def show_tag(repo, tag, outstream=sys.stdout):
 
 def show_object(repo, obj, outstream):
     return {
-        "tree": show_tree,
-        "blob": show_blob,
-        "commit": show_commit,
-        "tag": show_tag,
+        b'tree': show_tree,
+        b'blob': show_blob,
+        b'commit': show_commit,
+        b'tag': show_tag,
             }[obj.type_name](repo, obj, outstream)
 
 
-def log(repo=".", outstream=sys.stdout, max_entries=None):
+def log(repo=".", outstream=stdout, max_entries=None):
     """Write commit logs.
 
     :param repo: Path to repository
@@ -339,7 +344,7 @@ def log(repo=".", outstream=sys.stdout, max_entries=None):
         print_commit(entry.commit, outstream)
 
 
-def show(repo=".", objects=None, outstream=sys.stdout):
+def show(repo=".", objects=None, outstream=stdout):
     """Print the changes in a commit.
 
     :param repo: Path to repository
@@ -347,7 +352,7 @@ def show(repo=".", objects=None, outstream=sys.stdout):
     :param outstream: Stream to write to
     """
     if objects is None:
-        objects = ["HEAD"]
+        objects = [b'HEAD']
     if not isinstance(objects, list):
         objects = [objects]
     r = open_repo(repo)
@@ -355,7 +360,7 @@ def show(repo=".", objects=None, outstream=sys.stdout):
         show_object(r, parse_object(r, objectish), outstream)
 
 
-def diff_tree(repo, old_tree, new_tree, outstream=sys.stdout):
+def diff_tree(repo, old_tree, new_tree, outstream=stdout):
     """Compares the content and mode of blobs found via two tree objects.
 
     :param repo: Path to repository
@@ -367,7 +372,7 @@ def diff_tree(repo, old_tree, new_tree, outstream=sys.stdout):
     write_tree_diff(outstream, r.object_store, old_tree, new_tree)
 
 
-def rev_list(repo, commits, outstream=sys.stdout):
+def rev_list(repo, commits, outstream=stdout):
     """Lists commit objects in reverse chronological order.
 
     :param repo: Path to repository
@@ -376,7 +381,7 @@ def rev_list(repo, commits, outstream=sys.stdout):
     """
     r = open_repo(repo)
     for entry in r.get_walker(include=[r[c].id for c in commits]):
-        outstream.write("%s\n" % entry.commit.id)
+        outstream.write(entry.commit.id + b'\n')
 
 
 def tag(*args, **kwargs):
@@ -386,7 +391,7 @@ def tag(*args, **kwargs):
 
 
 def tag_create(repo, tag, author=None, message=None, annotated=False,
-        objectish="HEAD", tag_time=None, tag_timezone=None):
+        objectish=b"HEAD", tag_time=None, tag_timezone=None):
     """Creates a tag in git via dulwich calls:
 
     :param repo: Path to repository
@@ -418,15 +423,14 @@ def tag_create(repo, tag, author=None, message=None, annotated=False,
         if tag_timezone is None:
             # TODO(jelmer) Use current user timezone rather than UTC
             tag_timezone = 0
-        elif isinstance(tag_timezone, str):
+        elif isinstance(tag_timezone, bytes):
             tag_timezone = parse_timezone(tag_timezone)
         tag_obj.tag_timezone = tag_timezone
         r.object_store.add_object(tag_obj)
         tag_id = tag_obj.id
     else:
         tag_id = object.id
-
-    r.refs['refs/tags/' + tag] = tag_id
+    r.refs[b'refs/tags/' + tag] = tag_id
 
 
 def list_tags(*args, **kwargs):
@@ -435,14 +439,14 @@ def list_tags(*args, **kwargs):
     return tag_list(*args, **kwargs)
 
 
-def tag_list(repo, outstream=sys.stdout):
+def tag_list(repo, outstream=stdout):
     """List all tags.
 
     :param repo: Path to repository
     :param outstream: Stream to write tags to
     """
     r = open_repo(repo)
-    tags = list(r.refs.as_dict("refs/tags"))
+    tags = list(r.refs.as_dict(b'refs/tags'))
     tags.sort()
     return tags
 
@@ -454,17 +458,17 @@ def tag_delete(repo, name):
     :param name: Name of tag to remove
     """
     r = open_repo(repo)
-    if isinstance(name, str):
+    if isinstance(name, bytes):
         names = [name]
     elif isinstance(name, list):
         names = name
     else:
         raise TypeError("Unexpected tag name type %r" % name)
     for name in names:
-        del r.refs["refs/tags/" + name]
+        del r.refs[b"refs/tags/" + name]
 
 
-def reset(repo, mode, committish="HEAD"):
+def reset(repo, mode, committish=b"HEAD"):
     """Reset current HEAD to the specified state.
 
     :param repo: Path to repository
@@ -482,7 +486,7 @@ def reset(repo, mode, committish="HEAD"):
 
 
 def push(repo, remote_location, refs_path,
-         outstream=sys.stdout, errstream=sys.stderr):
+         outstream=stdout, errstream=stderr):
     """Remote push with dulwich via dulwich.client
 
     :param repo: Path to repository
@@ -500,21 +504,21 @@ def push(repo, remote_location, refs_path,
 
     def update_refs(refs):
         new_refs = r.get_refs()
-        refs[refs_path] = new_refs['HEAD']
-        del new_refs['HEAD']
+        refs[refs_path] = new_refs[b'HEAD']
+        del new_refs[b'HEAD']
         return refs
 
     try:
         client.send_pack(path, update_refs,
             r.object_store.generate_pack_contents, progress=errstream.write)
-        outstream.write("Push to %s successful.\n" % remote_location)
+        outstream.write(("Push to %s successful.\n" % remote_location).encode(sys.getdefaultencoding()))
     except (UpdateRefsError, SendPackError) as e:
-        outstream.write("Push to %s failed.\n" % remote_location)
-        errstream.write("Push to %s failed -> '%s'\n" % e.message)
+        outstream.write(("Push to %s failed.\n" % remote_location).encode(sys.getdefaultencoding()))
+        errstream.write(("Push to %s failed -> '%s'\n" % e.message).encode(sys.getdefaultencoding()))
 
 
 def pull(repo, remote_location, refs_path,
-         outstream=sys.stdout, errstream=sys.stderr):
+         outstream=stdout, errstream=stderr):
     """Pull from remote via dulwich.client
 
     :param repo: Path to repository
@@ -529,11 +533,11 @@ def pull(repo, remote_location, refs_path,
 
     client, path = get_transport_and_path(remote_location)
     remote_refs = client.fetch(path, r, progress=errstream.write)
-    r['HEAD'] = remote_refs[refs_path]
+    r[b'HEAD'] = remote_refs[refs_path]
 
     # Perform 'git checkout .' - syncs staged changes
     indexfile = r.index_path()
-    tree = r["HEAD"].tree
+    tree = r[b'HEAD'].tree
     index.build_index_from_tree(r.path, indexfile, r.object_store, tree)
 
 
@@ -574,7 +578,7 @@ def get_tree_changes(repo):
         'delete': [],
         'modify': [],
     }
-    for change in index.changes_from_tree(r.object_store, r['HEAD'].tree):
+    for change in index.changes_from_tree(r.object_store, r[b'HEAD'].tree):
         if not change[0][0]:
             tracked_changes['add'].append(change[0][1])
         elif not change[0][1]:
@@ -620,7 +624,7 @@ def web_daemon(path=".", address=None, port=None):
     server.serve_forever()
 
 
-def upload_pack(path=".", inf=sys.stdin, outf=sys.stdout):
+def upload_pack(path=".", inf=sys.stdin, outf=stdout):
     """Upload a pack file after negotiating its contents using smart protocol.
 
     :param path: Path to the repository
@@ -638,7 +642,7 @@ def upload_pack(path=".", inf=sys.stdin, outf=sys.stdout):
     return 0
 
 
-def receive_pack(path=".", inf=sys.stdin, outf=sys.stdout):
+def receive_pack(path=".", inf=sys.stdin, outf=stdout):
     """Receive a pack file after negotiating its contents using smart protocol.
 
     :param path: Path to the repository
@@ -663,14 +667,14 @@ def branch_delete(repo, name):
     :param name: Name of the branch
     """
     r = open_repo(repo)
-    if isinstance(name, str):
+    if isinstance(name, bytes):
         names = [name]
     elif isinstance(name, list):
         names = name
     else:
         raise TypeError("Unexpected branch name type %r" % name)
     for name in names:
-        del r.refs["refs/heads/" + name]
+        del r.refs[b"refs/heads/" + name]
 
 
 def branch_create(repo, name, objectish=None, force=False):
@@ -682,16 +686,16 @@ def branch_create(repo, name, objectish=None, force=False):
     :param force: Force creation of branch, even if it already exists
     """
     r = open_repo(repo)
-    if isinstance(name, str):
+    if isinstance(name, bytes):
         names = [name]
     elif isinstance(name, list):
         names = name
     else:
         raise TypeError("Unexpected branch name type %r" % name)
     if objectish is None:
-        objectish = "HEAD"
+        objectish = b"HEAD"
     object = parse_object(r, objectish)
-    refname = "refs/heads/" + name
+    refname = b"refs/heads/" + name
     if refname in r.refs and not force:
         raise KeyError("Branch with name %s already exists." % name)
     r.refs[refname] = object.id
@@ -703,10 +707,10 @@ def branch_list(repo):
     :param repo: Path to the repository
     """
     r = open_repo(repo)
-    return r.refs.keys(base="refs/heads/")
+    return r.refs.keys(base=b"refs/heads/")
 
 
-def fetch(repo, remote_location, outstream=sys.stdout, errstream=sys.stderr):
+def fetch(repo, remote_location, outstream=stdout, errstream=stderr):
     """Fetch objects from a remote server.
 
     :param repo: Path to the repository

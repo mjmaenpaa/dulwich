@@ -59,3 +59,9 @@ else:
     values = lambda d: d.values()
     items = lambda d: d.items()
 
+if PY2:
+    stdout = sys.stdout
+    stderr = sys.stderr
+else:
+    stdout = sys.stdout.buffer
+    stderr = sys.stderr.buffer
