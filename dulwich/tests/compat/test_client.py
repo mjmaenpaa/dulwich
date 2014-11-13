@@ -30,7 +30,10 @@ import sys
 import tarfile
 import tempfile
 import threading
-import urllib
+try:
+    from urllib import unquote
+except ImportError:
+    from urllib.parse import unquote
 
 try:
     import BaseHTTPServer
@@ -56,9 +59,6 @@ from dulwich.tests import (
     get_safe_env,
     SkipTest,
     )
-from dulwich.tests.utils import (
-    skipIfPY3,
-    )
 from dulwich.tests.compat.utils import (
     CompatTestCase,
     check_for_daemon,
@@ -68,7 +68,6 @@ from dulwich.tests.compat.utils import (
     )
 
 
-@skipIfPY3
 class DulwichClientTestBase(object):
     """Tests for client/server compatibility."""
 
@@ -97,7 +96,7 @@ class DulwichClientTestBase(object):
         srcpath = os.path.join(self.gitroot, 'server_new.export')
         src = repo.Repo(srcpath)
         sendrefs = dict(src.get_refs())
-        del sendrefs['HEAD']
+        del sendrefs[b'HEAD']
         c.send_pack(self._build_path('/dest'), lambda _: sendrefs,
                     src.object_store.generate_pack_contents)
 
@@ -113,24 +112,24 @@ class DulwichClientTestBase(object):
 
     def test_send_without_report_status(self):
         c = self._client()
-        c._send_capabilities.remove('report-status')
+        c._send_capabilities.remove(b'report-status')
         srcpath = os.path.join(self.gitroot, 'server_new.export')
         src = repo.Repo(srcpath)
         sendrefs = dict(src.get_refs())
-        del sendrefs['HEAD']
+        del sendrefs[b'HEAD']
         c.send_pack(self._build_path('/dest'), lambda _: sendrefs,
                     src.object_store.generate_pack_contents)
         self.assertDestEqualsSrc()
 
     def make_dummy_commit(self, dest):
-        b = objects.Blob.from_string('hi')
+        b = objects.Blob.from_string(b'hi')
         dest.object_store.add_object(b)
-        t = index.commit_tree(dest.object_store, [('hi', b.id, 0o100644)])
+        t = index.commit_tree(dest.object_store, [(b'hi', b.id, 0o100644)])
         c = objects.Commit()
-        c.author = c.committer = 'Foo Bar <foo@example.com>'
+        c.author = c.committer = b'Foo Bar <foo@example.com>'
         c.author_time = c.commit_time = 0
         c.author_timezone = c.commit_timezone = 0
-        c.message = 'hi'
+        c.message = b'hi'
         c.tree = t
         dest.object_store.add_object(c)
         return c.id
@@ -147,26 +146,26 @@ class DulwichClientTestBase(object):
         srcpath = os.path.join(self.gitroot, 'server_new.export')
         src = repo.Repo(srcpath)
         sendrefs = dict(src.get_refs())
-        del sendrefs['HEAD']
+        del sendrefs[b'HEAD']
         return sendrefs, src.object_store.generate_pack_contents
 
     def test_send_pack_one_error(self):
         dest, dummy_commit = self.disable_ff_and_make_dummy_commit()
-        dest.refs['refs/heads/master'] = dummy_commit
+        dest.refs[b'refs/heads/master'] = dummy_commit
         sendrefs, gen_pack = self.compute_send()
         c = self._client()
         try:
             c.send_pack(self._build_path('/dest'), lambda _: sendrefs, gen_pack)
         except errors.UpdateRefsError as e:
-            self.assertEqual('refs/heads/master failed to update', str(e))
-            self.assertEqual({'refs/heads/branch': 'ok',
-                              'refs/heads/master': 'non-fast-forward'},
+            self.assertEqual('{} failed to update'.format(b'refs/heads/master'), str(e))
+            self.assertEqual({b'refs/heads/branch': b'ok',
+                              b'refs/heads/master': b'non-fast-forward'},
                              e.ref_status)
 
     def test_send_pack_multiple_errors(self):
         dest, dummy = self.disable_ff_and_make_dummy_commit()
         # set up for two non-ff errors
-        branch, master = 'refs/heads/branch', 'refs/heads/master'
+        branch, master = b'refs/heads/branch', b'refs/heads/master'
         dest.refs[branch] = dest.refs[master] = dummy
         sendrefs, gen_pack = self.compute_send()
         c = self._client()
@@ -176,14 +175,14 @@ class DulwichClientTestBase(object):
             self.assertIn(str(e),
                           ['{0}, {1} failed to update'.format(branch, master),
                            '{1}, {0} failed to update'.format(branch, master)])
-            self.assertEqual({branch: 'non-fast-forward',
-                              master: 'non-fast-forward'},
+            self.assertEqual({branch: b'non-fast-forward',
+                              master: b'non-fast-forward'},
                              e.ref_status)
 
     def test_archive(self):
         c = self._client()
         f = BytesIO()
-        c.archive(self._build_path('/server_new.export'), 'HEAD', f.write)
+        c.archive(self._build_path('/server_new.export'), b'HEAD', f.write)
         f.seek(0)
         tf = tarfile.open(fileobj=f)
         self.assertEqual(['baz', 'foo'], tf.getnames())
@@ -199,7 +198,7 @@ class DulwichClientTestBase(object):
     def test_incremental_fetch_pack(self):
         self.test_fetch_pack()
         dest, dummy = self.disable_ff_and_make_dummy_commit()
-        dest.refs['refs/heads/master'] = dummy
+        dest.refs[b'refs/heads/master'] = dummy
         c = self._client()
         dest = repo.Repo(os.path.join(self.gitroot, 'server_new.export'))
         refs = c.fetch(self._build_path('/dest'), dest)
@@ -209,7 +208,7 @@ class DulwichClientTestBase(object):
 
     def test_fetch_pack_no_side_band_64k(self):
         c = self._client()
-        c._fetch_capabilities.remove('side-band-64k')
+        c._fetch_capabilities.remove(b'side-band-64k')
         dest = repo.Repo(os.path.join(self.gitroot, 'dest'))
         refs = c.fetch(self._build_path('/server_new.export'), dest)
         for r in refs.items():
@@ -229,16 +228,16 @@ class DulwichClientTestBase(object):
     def test_send_remove_branch(self):
         dest = repo.Repo(os.path.join(self.gitroot, 'dest'))
         dummy_commit = self.make_dummy_commit(dest)
-        dest.refs['refs/heads/master'] = dummy_commit
-        dest.refs['refs/heads/abranch'] = dummy_commit
+        dest.refs[b'refs/heads/master'] = dummy_commit
+        dest.refs[b'refs/heads/abranch'] = dummy_commit
         sendrefs = dict(dest.refs)
-        sendrefs['refs/heads/abranch'] = "00" * 20
-        del sendrefs['HEAD']
+        sendrefs[b'refs/heads/abranch'] = b'00' * 20
+        del sendrefs[b'HEAD']
         gen_pack = lambda have, want: []
         c = self._client()
-        self.assertEqual(dest.refs["refs/heads/abranch"], dummy_commit)
+        self.assertEqual(dest.refs[b'refs/heads/abranch'], dummy_commit)
         c.send_pack(self._build_path('/dest'), lambda _: sendrefs, gen_pack)
-        self.assertFalse("refs/heads/abranch" in dest.refs)
+        self.assertFalse(b'refs/heads/abranch' in dest.refs)
 
 
 class DulwichTCPClientTest(CompatTestCase, DulwichClientTestBase):
@@ -296,7 +295,7 @@ class TestSSHVendor(object):
         cmd, path = command[0].replace("'", '').split(' ')
         cmd = cmd.split('-', 1)
         p = subprocess.Popen(cmd + [path], env=get_safe_env(), stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
         return client.SubprocessWrapper(p)
 
 
@@ -370,7 +369,8 @@ class GitHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         else:
             query = ''
 
-        env = copy.deepcopy(os.environ)
+        #env = copy.deepcopy(os.environ)
+        env = {'PATH': os.environ['PATH']}
         env['SERVER_SOFTWARE'] = self.version_string()
         env['SERVER_NAME'] = self.server.server_name
         env['GATEWAY_INTERFACE'] = 'CGI/1.1'
@@ -379,7 +379,7 @@ class GitHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         env['GIT_PROJECT_ROOT'] = self.server.root_path
         env["GIT_HTTP_EXPORT_ALL"] = "1"
         env['REQUEST_METHOD'] = self.command
-        uqrest = urllib.unquote(rest)
+        uqrest = unquote(rest)
         env['PATH_INFO'] = uqrest
         env['SCRIPT_NAME'] = "/"
         if query:
@@ -388,7 +388,7 @@ class GitHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         if host != self.client_address[0]:
             env['REMOTE_HOST'] = host
         env['REMOTE_ADDR'] = self.client_address[0]
-        authorization = self.headers.getheader("authorization")
+        authorization = self.headers.get("authorization")
         if authorization:
             authorization = authorization.split()
             if len(authorization) == 2:
@@ -404,14 +404,15 @@ class GitHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
                         if len(authorization) == 2:
                             env['REMOTE_USER'] = authorization[0]
         # XXX REMOTE_IDENT
-        if self.headers.typeheader is None:
-            env['CONTENT_TYPE'] = self.headers.type
+
+        if self.headers.get('content-type') is None:
+            env['CONTENT_TYPE'] = self.headers.get_content_type()
         else:
-            env['CONTENT_TYPE'] = self.headers.typeheader
-        length = self.headers.getheader('content-length')
+            env['CONTENT_TYPE'] = self.headers['content-type']
+        length = self.headers.get('content-length')
         if length:
             env['CONTENT_LENGTH'] = length
-        referer = self.headers.getheader('referer')
+        referer = self.headers.get('referer')
         if referer:
             env['HTTP_REFERER'] = referer
         accept = []
@@ -421,10 +422,13 @@ class GitHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
             else:
                 accept = accept + line[7:].split(',')
         env['HTTP_ACCEPT'] = ','.join(accept)
-        ua = self.headers.getheader('user-agent')
+        ua = self.headers.get('user-agent')
         if ua:
             env['HTTP_USER_AGENT'] = ua
-        co = filter(None, self.headers.getheaders('cookie'))
+        if hasattr(self.headers, 'get_all'):  # no get_all in PY2
+            co = filter(None, self.headers.get_all('cookie', []))
+        else:
+            co = filter(None, self.headers.get('cookie', []))
         if co:
             env['HTTP_COOKIE'] = ', '.join(co)
         # XXX Other HTTP_* headers
@@ -454,6 +458,8 @@ class GitHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         if '=' not in decoded_query:
             args.append(decoded_query)
         stdout = run_git_or_fail(args, input=data, env=env, stderr=subprocess.PIPE)
+        if hasattr(self, 'flush_headers'):
+            self.flush_headers()
         self.wfile.write(stdout)
 
 
