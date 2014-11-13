@@ -32,7 +32,6 @@ from dulwich.server import (
     )
 from dulwich.tests.utils import (
     tear_down_repo,
-    skipIfPY3,
     )
 from dulwich.tests.compat.utils import (
     import_repo,
@@ -64,7 +63,6 @@ def _get_shallow(repo):
     return shallows
 
 
-@skipIfPY3
 class ServerTests(object):
     """Base tests for testing servers.
 
@@ -118,7 +116,7 @@ class ServerTests(object):
                         cwd=self._new_repo.path)
 
         self.assertEqual(
-            self._old_repo.get_refs().keys(), ["refs/heads/branch"])
+            list(self._old_repo.get_refs().keys()), [b'refs/heads/branch'])
 
     def test_fetch_from_dulwich(self):
         self.import_repos()
@@ -168,7 +166,7 @@ class ServerTests(object):
         self._repo = import_repo('server_old.export')
         port = self._start_server(self._repo)
         o = run_git_or_fail(['ls-remote', self.url(port)])
-        self.assertEqual(len(o.split('\n')), 4)
+        self.assertEqual(len(o.split(b'\n')), 4)
 
     def test_new_shallow_clone_from_dulwich(self):
         self._source_repo = import_repo('server_new.export')
@@ -181,8 +179,8 @@ class ServerTests(object):
         run_git_or_fail(['clone', '--mirror', '--depth=1', '--no-single-branch',
                         self.url(port), self._stub_repo.path])
         clone = self._stub_repo = Repo(self._stub_repo.path)
-        expected_shallow = ['94de09a530df27ac3bb613aaecdd539e0a0655e1',
-                            'da5cd81e1883c62a25bb37c4d1f8ad965b29bf8d']
+        expected_shallow = [b'94de09a530df27ac3bb613aaecdd539e0a0655e1',
+                            b'da5cd81e1883c62a25bb37c4d1f8ad965b29bf8d']
         self.assertEqual(expected_shallow, _get_shallow(clone))
         self.assertReposNotEqual(clone, self._source_repo)
 
@@ -202,8 +200,8 @@ class ServerTests(object):
         run_git_or_fail(
           ['fetch', '--depth=1', self.url(port)] + self.branch_args(),
           cwd=self._stub_repo.path)
-        expected_shallow = ['94de09a530df27ac3bb613aaecdd539e0a0655e1',
-                            'da5cd81e1883c62a25bb37c4d1f8ad965b29bf8d']
+        expected_shallow = [b'94de09a530df27ac3bb613aaecdd539e0a0655e1',
+                            b'da5cd81e1883c62a25bb37c4d1f8ad965b29bf8d']
         self.assertEqual(expected_shallow, _get_shallow(clone))
         self.assertReposNotEqual(clone, self._source_repo)
 

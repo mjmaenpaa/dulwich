@@ -48,7 +48,12 @@ from dulwich.tests.compat.utils import (
     CompatTestCase,
     )
 
+from dulwich.tests.utils import (
+    skipIfPY3,
+    )
 
+
+@skipIfPY3
 class WebTests(ServerTests):
     """Base tests for web server tests.
 
