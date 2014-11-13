@@ -48,7 +48,6 @@ from dulwich.objects import (
     )
 from dulwich.repo import Repo
 from dulwich.tests import TestCase
-from dulwich.tests.utils import skipIfPY3
 
 
 class IndexTestCase(TestCase):
@@ -254,7 +253,6 @@ class BuildIndexTests(TestCase):
             with open(path, 'rb') as f:
                 self.assertEqual(f.read(), contents)
 
-    @skipIfPY3
     def test_empty(self):
         repo_dir = tempfile.mkdtemp()
         repo = Repo.init(repo_dir)
@@ -273,7 +271,6 @@ class BuildIndexTests(TestCase):
         # Verify no files
         self.assertEqual(['.git'], os.listdir(repo.path))
 
-    @skipIfPY3
     def test_nonempty(self):
         if os.name != 'posix':
             self.skipTest("test depends on POSIX shell")
@@ -341,7 +338,6 @@ class BuildIndexTests(TestCase):
 
 class GetUnstagedChangesTests(TestCase):
 
-    @skipIfPY3
     def test_get_unstaged_changes(self):
         """Unit test for get_unstaged_changes."""
 
