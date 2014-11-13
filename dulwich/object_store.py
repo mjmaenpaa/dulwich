@@ -27,6 +27,7 @@ from itertools import chain
 import os
 import stat
 import tempfile
+import sys
 
 from dulwich.diff_tree import (
     tree_changes,
@@ -61,6 +62,10 @@ from dulwich.pack import (
     PackIndexer,
     PackStreamCopier,
     )
+from dulwich._py3_compat import (
+    items,
+    PY3,
+    )
 
 INFODIR = 'info'
 PACKDIR = 'pack'
@@ -70,8 +75,8 @@ class BaseObjectStore(object):
     """Object store interface."""
 
     def determine_wants_all(self, refs):
-        return [sha for (ref, sha) in refs.iteritems()
-                if not sha in self and not ref.endswith("^{}") and
+        return [sha for (ref, sha) in items(refs)
+                if not sha in self and not ref.endswith(b"^{}") and
                    not sha == ZERO_SHA]
 
     def iter_shas(self, shas):
@@ -302,7 +307,11 @@ class PackBasedObjectStore(BaseObjectStore):
         if self._pack_cache is None or self._pack_cache_stale():
             self._update_pack_cache()
 
-        return self._pack_cache.values()
+        if PY3:
+            # TODO look for better way.
+            return list(self._pack_cache.values())
+        else:
+            return self._pack_cache.values()
 
     def _iter_alternate_objects(self):
         """Iterate over the SHAs of all the objects in alternate stores."""
@@ -433,7 +442,7 @@ class DiskObjectStore(PackBasedObjectStore):
         ret = []
         with f:
             for l in f.readlines():
-                l = l.rstrip("\n")
+                l = l.decode(sys.getdefaultencoding()).rstrip("\n")
                 if l[0] == "#":
                     continue
                 if os.path.isabs(l):
@@ -460,7 +469,7 @@ class DiskObjectStore(PackBasedObjectStore):
             else:
                 with orig_f:
                     f.write(orig_f.read())
-            f.write("%s\n" % path)
+            f.write(path.encode(sys.getfilesystemencoding()) + b'\n')
 
         if not os.path.isabs(path):
             path = os.path.join(self.path, path)
@@ -507,7 +516,7 @@ class DiskObjectStore(PackBasedObjectStore):
             if len(base) != 2:
                 continue
             for rest in os.listdir(os.path.join(self.path, base)):
-                yield base+rest
+                yield (base+rest).encode('ascii')
 
     def _get_loose_object(self, sha):
         path = self._get_shafile_path(sha)
@@ -561,7 +570,7 @@ class DiskObjectStore(PackBasedObjectStore):
         # Move the pack in.
         entries.sort()
         pack_base_name = os.path.join(
-          self.pack_dir, 'pack-' + iter_sha1(e[0] for e in entries))
+            self.pack_dir, 'pack-' + iter_sha1(e[0] for e in entries).decode('ascii'))
         os.rename(path, pack_base_name + '.pack')
 
         # Write the index.
@@ -611,7 +620,7 @@ class DiskObjectStore(PackBasedObjectStore):
         with PackData(path) as p:
             entries = p.sorted_entries()
             basename = os.path.join(self.pack_dir,
-                "pack-%s" % iter_sha1(entry[0] for entry in entries))
+                'pack-' + iter_sha1(entry[0] for entry in entries).decode('ascii'))
             with GitFile(basename+".idx", "wb") as f:
                 write_pack_index_v2(f, entries, p.get_stored_checksum())
         os.rename(path, basename + ".pack")
@@ -646,13 +655,13 @@ class DiskObjectStore(PackBasedObjectStore):
 
         :param obj: Object to add
         """
-        dir = os.path.join(self.path, obj.id[:2])
+        dir = os.path.join(self.path, obj.id[:2].decode('ascii'))
         try:
             os.mkdir(dir)
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
-        path = os.path.join(dir, obj.id[2:])
+        path = os.path.join(dir, obj.id[2:].decode('ascii'))
         if os.path.exists(path):
             return # Already there, no need to write again
         with GitFile(path, 'wb') as f:
@@ -695,7 +704,8 @@ class MemoryObjectStore(BaseObjectStore):
 
     def __iter__(self):
         """Iterate over the SHAs that are present in this store."""
-        return self._data.iterkeys()
+        for key in self._data:
+            yield key
 
     @property
     def packs(self):
@@ -903,7 +913,7 @@ def _collect_filetree_revs(obj_store, tree_sha, kset):
     :param kset: set to fill with references to files and directories
     """
     filetree = obj_store[tree_sha]
-    for name, mode, sha in filetree.iteritems():
+    for name, mode, sha in items(filetree):
         if not S_ISGITLINK(mode) and sha not in kset:
             kset.add(sha)
             if stat.S_ISDIR(mode):
@@ -1022,7 +1032,7 @@ class MissingObjectFinder(object):
                 self.add_todo([(o.tree, "", False)])
             elif isinstance(o, Tree):
                 self.add_todo([(s, n, not stat.S_ISDIR(m))
-                               for n, m, s in o.iteritems()
+                               for n, m, s in items(o)
                                if not S_ISGITLINK(m)])
             elif isinstance(o, Tag):
                 self.add_todo([(o.object[1], None, False)])

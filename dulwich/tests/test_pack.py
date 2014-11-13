@@ -520,7 +520,7 @@ class WritePackTests(TestCase):
         self.assertEqual(sha_a.digest(), sha_b.digest())
 
 
-pack_checksum = hex_to_sha('721980e866af9a5f93ad674144e1459b8ba3e7b7')
+pack_checksum = hex_to_sha(b'721980e866af9a5f93ad674144e1459b8ba3e7b7')
 
 
 class BaseTestPackIndexWriting(object):
