@@ -30,6 +30,7 @@ local disk (Repo).
 from io import BytesIO
 import errno
 import os
+import sys
 
 from dulwich.errors import (
     NoIndexPresent,
@@ -77,6 +78,10 @@ from dulwich.refs import (
     SYMREF,
     )
 
+from dulwich._py3_compat import (
+    items,
+    string_types,
+    )
 
 import warnings
 
@@ -140,12 +145,12 @@ def serialize_graftpoints(graftpoints):
 
     """
     graft_lines = []
-    for commit, parents in graftpoints.iteritems():
+    for commit, parents in items(graftpoints):
         if parents:
-            graft_lines.append('%s %s' % (commit, ' '.join(parents)))
+            graft_lines.append(b' '.join([commit] + parents))
         else:
             graft_lines.append(commit)
-    return '\n'.join(graft_lines)
+    return b'\n'.join(graft_lines)
 
 
 class BaseRepo(object):
@@ -175,16 +180,16 @@ class BaseRepo(object):
     def _init_files(self, bare):
         """Initialize a default set of named files."""
         from dulwich.config import ConfigFile
-        self._put_named_file('description', "Unnamed repository")
+        self._put_named_file('description', b'Unnamed repository')
         f = BytesIO()
         cf = ConfigFile()
-        cf.set("core", "repositoryformatversion", "0")
-        cf.set("core", "filemode", "true")
-        cf.set("core", "bare", str(bare).lower())
-        cf.set("core", "logallrefupdates", "true")
+        cf.set(b'core', b'repositoryformatversion', b'0')
+        cf.set(b'core', b'filemode', b'true')
+        cf.set(b'core', b'bare', bytes(bare).lower())
+        cf.set(b'core', b'logallrefupdates', b'true')
         cf.write_to_file(f)
         self._put_named_file('config', f.getvalue())
-        self._put_named_file(os.path.join('info', 'exclude'), '')
+        self._put_named_file(os.path.join('info', 'exclude'), b'')
 
     def get_named_file(self, path):
         """Get a file from the control dir with a specific name.
@@ -291,7 +296,7 @@ class BaseRepo(object):
         :return: A graph walker object
         """
         if heads is None:
-            heads = self.refs.as_dict('refs/heads').values()
+            heads = self.refs.as_dict(b'refs/heads').values()
         return ObjectStoreGraphWalker(heads, self.get_parents)
 
     def get_refs(self):
@@ -303,7 +308,7 @@ class BaseRepo(object):
 
     def head(self):
         """Return the SHA1 pointed at by HEAD."""
-        return self.refs['HEAD']
+        return self.refs[b'HEAD']
 
     def _get_object(self, sha, cls):
         assert len(sha) in (20, 40)
@@ -425,7 +430,7 @@ class BaseRepo(object):
         from dulwich.walk import Walker
         if include is None:
             include = [self.head()]
-        if isinstance(include, str):
+        if isinstance(include, bytes):
             include = [include]
 
         kwargs['get_parents'] = lambda commit: self.get_parents(commit.id, commit)
@@ -439,7 +444,7 @@ class BaseRepo(object):
         :return: A `ShaFile` object, such as a Commit or Blob
         :raise KeyError: when the specified ref or object does not exist
         """
-        if not isinstance(name, str):
+        if not isinstance(name, bytes):
             raise TypeError("'name' must be bytestring, not %.80s" %
                     type(name).__name__)
         if len(name) in (20, 40):
@@ -468,13 +473,13 @@ class BaseRepo(object):
         :param name: ref name
         :param value: Ref value - either a ShaFile object, or a hex sha
         """
-        if name.startswith("refs/") or name == "HEAD":
+        if name.startswith(b'refs/') or name == b'HEAD':
             if isinstance(value, ShaFile):
                 self.refs[name] = value.id
-            elif isinstance(value, str):
+            elif isinstance(value, bytes):
                 self.refs[name] = value
             else:
-                raise TypeError(value)
+                raise TypeError('Expected bytes or ShaFile for value, got %r' % value)
         else:
             raise ValueError(name)
 
@@ -483,7 +488,7 @@ class BaseRepo(object):
 
         :param name: Name of the ref to remove
         """
-        if name.startswith("refs/") or name == "HEAD":
+        if name.startswith(b'refs/') or name == b'HEAD':
             del self.refs[name]
         else:
             raise ValueError(name)
@@ -492,9 +497,7 @@ class BaseRepo(object):
         """Determine the identity to use for new commits.
         """
         config = self.get_config_stack()
-        return "%s <%s>" % (
-            config.get(("user", ), "name"),
-            config.get(("user", ), "email"))
+        return config.get((b'user', ), b'name') + b' <' + config.get((b'user', ), b'email') + b'>'
 
     def _add_graftpoints(self, updated_graftpoints):
         """Add or modify graftpoints
@@ -503,7 +506,7 @@ class BaseRepo(object):
         """
 
         # Simple validation
-        for commit, parents in updated_graftpoints.iteritems():
+        for commit, parents in items(updated_graftpoints):
             for sha in [commit] + parents:
                 check_hexsha(sha, 'Invalid graftpoint')
 
@@ -521,7 +524,7 @@ class BaseRepo(object):
                   author=None, commit_timestamp=None,
                   commit_timezone=None, author_timestamp=None,
                   author_timezone=None, tree=None, encoding=None,
-                  ref='HEAD', merge_heads=None):
+                  ref=b'HEAD', merge_heads=None):
         """Create a new commit.
 
         :param message: Commit message
@@ -735,7 +738,7 @@ class Repo(BaseRepo):
 
         :param paths: List of paths, relative to the repository path
         """
-        if isinstance(paths, basestring):
+        if isinstance(paths, string_types):
             paths = [paths]
         from dulwich.index import (
             blob_from_path_and_stat,
@@ -743,23 +746,24 @@ class Repo(BaseRepo):
             )
         index = self.open_index()
         for path in paths:
+            encoded_path = path.encode(sys.getfilesystemencoding())
             full_path = os.path.join(self.path, path)
             try:
                 st = os.lstat(full_path)
             except OSError:
                 # File no longer exists
                 try:
-                    del index[path]
+                    del index[encoded_path]
                 except KeyError:
                     pass  # already removed
             else:
                 blob = blob_from_path_and_stat(full_path, st)
                 self.object_store.add_object(blob)
-                index[path] = index_entry_from_stat(st, blob.id, 0)
+                index[encoded_path] = index_entry_from_stat(st, blob.id, 0)
         index.write()
 
     def clone(self, target_path, mkdir=True, bare=False,
-            origin="origin"):
+              origin=b'origin'):
         """Clone this repository.
 
         :param target_path: Target path
@@ -775,21 +779,21 @@ class Repo(BaseRepo):
             target = self.init_bare(target_path)
         self.fetch(target)
         target.refs.import_refs(
-            'refs/remotes/' + origin, self.refs.as_dict('refs/heads'))
+            b'refs/remotes/' + origin, self.refs.as_dict(b'refs/heads'))
         target.refs.import_refs(
-            'refs/tags', self.refs.as_dict('refs/tags'))
+            b'refs/tags', self.refs.as_dict(b'refs/tags'))
         try:
             target.refs.add_if_new(
-                'refs/heads/master',
-                self.refs['refs/heads/master'])
+                b'refs/heads/master',
+                self.refs[b'refs/heads/master'])
         except KeyError:
             pass
 
         # Update target head
-        head, head_sha = self.refs._follow('HEAD')
+        head, head_sha = self.refs._follow(b'HEAD')
         if head is not None and head_sha is not None:
-            target.refs.set_symbolic_ref('HEAD', head)
-            target['HEAD'] = head_sha
+            target.refs.set_symbolic_ref(b'HEAD', head)
+            target[b'HEAD'] = head_sha
 
             if not bare:
                 # Checkout HEAD to target dir
@@ -800,10 +804,10 @@ class Repo(BaseRepo):
     def _build_tree(self):
         from dulwich.index import build_index_from_tree
         config = self.get_config()
-        honor_filemode = config.get_boolean('core', 'filemode', os.name != "nt")
-        return build_index_from_tree(self.path, self.index_path(),
-                self.object_store, self['HEAD'].tree,
-                honor_filemode=honor_filemode)
+        honor_filemode = config.get_boolean(b'core', b'filemode', os.name != b'nt')
+        return build_index_from_tree(
+            self.path, self.index_path(), self.object_store,
+            self[b'HEAD'].tree, honor_filemode=honor_filemode)
 
     def get_config(self):
         """Retrieve the config object.
@@ -845,7 +849,7 @@ class Repo(BaseRepo):
         """
 
         path = os.path.join(self._controldir, 'description')
-        with open(path, 'w') as f:
+        with open(path, 'wb') as f:
             f.write(description)
 
     @classmethod
@@ -854,7 +858,7 @@ class Repo(BaseRepo):
             os.mkdir(os.path.join(path, *d))
         DiskObjectStore.init(os.path.join(path, OBJECTDIR))
         ret = cls(path)
-        ret.refs.set_symbolic_ref("HEAD", "refs/heads/master")
+        ret.refs.set_symbolic_ref(b'HEAD', b'refs/heads/master')
         ret._init_files(bare)
         return ret
 
@@ -957,7 +961,7 @@ class MemoryRepo(BaseRepo):
         ret = cls()
         for obj in objects:
             ret.object_store.add_object(obj)
-        for refname, sha in refs.iteritems():
+        for refname, sha in items(refs):
             ret.refs[refname] = sha
         ret._init_files(bare=True)
         return ret

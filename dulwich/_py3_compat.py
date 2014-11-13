@@ -25,12 +25,12 @@ PY3 = sys.version_info[0] == 3
 
 if PY2:
     text_type = unicode
-    #string_types = (str, unicode)
+    string_types = (str, unicode)
     #unichr = unichr
     integer_types = (int, long)
 else:
     text_type = str
-    #string_types = (str,)
+    string_types = (str,)
     #unichr = chr
     integer_types = (int, )
 
