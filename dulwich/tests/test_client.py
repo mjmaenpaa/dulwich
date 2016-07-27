@@ -22,6 +22,11 @@ import sys
 import shutil
 import tempfile
 
+try:
+    # Python >= 3.3
+    from unittest import mock
+except ImportError:
+    import mock
 
 import dulwich
 from dulwich import (
@@ -463,6 +468,38 @@ class TestGetTransportAndPath(TestCase):
         self.assertTrue(isinstance(c, HttpGitClient))
         self.assertEqual('/jelmer/dulwich', path)
 
+    def test_http_auth(self):
+        url = 'https://user:passwd@github.com/jelmer/dulwich'
+
+        with mock.patch('dulwich.client.HttpGitClient.__init__') as init_mock:
+            init_mock.return_value = None
+            c, path = get_transport_and_path(url)
+
+            self.assertTrue(isinstance(c, HttpGitClient))
+            self.assertEqual('/jelmer/dulwich', path)
+
+            init_mock.assert_called_once_with(
+                'https://github.com/jelmer/dulwich',
+                config=None,
+                username='user',
+                passwd='passwd')
+
+    def test_http_no_auth(self):
+        url = 'https://github.com/jelmer/dulwich'
+
+        with mock.patch('dulwich.client.HttpGitClient.__init__') as init_mock:
+            init_mock.return_value = None
+            c, path = get_transport_and_path(url)
+
+            self.assertTrue(isinstance(c, HttpGitClient))
+            self.assertEqual('/jelmer/dulwich', path)
+
+            init_mock.assert_called_once_with(
+                'https://github.com/jelmer/dulwich',
+                config=None,
+                username=None,
+                passwd=None)
+
 
 class TestGetTransportAndPathFromUrl(TestCase):
 
@@ -710,3 +747,24 @@ class LocalGitClientTests(TestCase):
         obj_local = local.get_object(new_refs[ref_name])
         obj_target = target.get_object(new_refs[ref_name])
         self.assertEqual(obj_local, obj_target)
+
+
+class HttpGitClientTests(TestCase):
+
+    def test_init_username_passwd_set(self):
+        url = 'https://user:passwd@github.com/jelmer/dulwich'
+
+        with mock.patch('dulwich.client.urllib2.HTTPPasswordMgrWithDefaultRealm.add_password') as passman_mock:
+
+            c = HttpGitClient(url, config=None, username='user', passwd='passwd')
+            passman_mock.assert_called_once_with(
+                None,
+                url, 'user', 'passwd')
+
+    def test_init_no_username_passwd(self):
+        url = 'https://github.com/jelmer/dulwich'
+
+        with mock.patch('dulwich.client.urllib2.HTTPPasswordMgrWithDefaultRealm.add_password') as passman_mock:
+
+            c = HttpGitClient(url, config=None)
+            self.assertFalse(passman_mock.called)
